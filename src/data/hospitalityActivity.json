@@ -1,0 +1,155 @@
+{
+  "regions": [
+    {
+      "country": "Kenya",
+      "towns": [
+        {
+          "name": "Nairobi",
+          "highlights": ["International NGOs", "Training centers", "Major hotels", "Airport connectivity"],
+          "industry_focus": ["Hospitality management", "Conference tourism", "Digital & NGO sector"],
+          "trainingEventsScore": 9.5
+        },
+        {
+          "name": "Mombasa",
+          "highlights": ["Coastal tourism", "Beach resorts", "Marine conservation"],
+          "industry_focus": ["Hospitality and catering", "Tour operations", "NGO coastal resilience programs"],
+          "trainingEventsScore": 7.8
+        },
+        {
+          "name": "Nakuru",
+          "highlights": ["Eco-tourism", "Growing hospitality industry", "UNESCO heritage sites nearby"],
+          "industry_focus": ["Hotel training", "Ecotourism management", "Community-based tourism"],
+          "trainingEventsScore": 7.2
+        },
+        {
+          "name": "Eldoret",
+          "highlights": ["Agribusiness hub", "Sports tourism", "NGO training institutions"],
+          "industry_focus": ["Hospitality logistics", "Sports and event management", "Health-related NGOs"],
+          "trainingEventsScore": 7.6
+        },
+        {
+          "name": "Kisumu",
+          "highlights": ["Lake Victoria tourism", "Conference potential", "NGO regional offices"],
+          "industry_focus": ["Hospitality training", "Urban tourism", "Water-based livelihoods"],
+          "trainingEventsScore": 8.1
+        },
+        {
+          "name": "Naivasha",
+          "highlights": ["Conference resorts", "Lake tourism", "Flower industry"],
+          "industry_focus": ["Event hosting", "Hospitality management", "Sustainable tourism"],
+          "trainingEventsScore": 8.4
+        }
+      ]
+    },
+    {
+      "country": "Uganda",
+      "towns": [
+        {
+          "name": "Kampala",
+          "highlights": ["Capital city", "Regional NGO hub", "Vibrant hospitality sector"],
+          "industry_focus": ["Hospitality management", "Conference tourism", "NGO capacity development"],
+          "trainingEventsScore": 9.3
+        },
+        {
+          "name": "Entebbe",
+          "highlights": ["Airport city", "Beach tourism", "Conservation centers"],
+          "industry_focus": ["Airport hospitality", "Eco-lodges", "Wildlife NGO support"],
+          "trainingEventsScore": 7.9
+        },
+        {
+          "name": "Jinja",
+          "highlights": ["Adventure tourism", "Nile source", "NGO training retreats"],
+          "industry_focus": ["Hospitality entrepreneurship", "Adventure tourism", "NGO-hosted events"],
+          "trainingEventsScore": 8.0
+        },
+        {
+          "name": "Fort Portal",
+          "highlights": ["Eco-lodges", "Mountain tourism", "Community conservation"],
+          "industry_focus": ["Ecotourism", "Hospitality and sustainability", "NGO rural training"],
+          "trainingEventsScore": 7.3
+        }
+      ]
+    },
+    {
+      "country": "Tanzania",
+      "towns": [
+        {
+          "name": "Arusha",
+          "highlights": ["Safari gateway", "UN and NGO presence", "Hospitality schools"],
+          "industry_focus": ["Safari hospitality", "International training", "NGO coordination"],
+          "trainingEventsScore": 9.0
+        },
+        {
+          "name": "Dar es Salaam",
+          "highlights": ["Coastal business hub", "Hotels and resorts", "Port access"],
+          "industry_focus": ["Hotel and tourism management", "NGO regional HQ", "Business tourism"],
+          "trainingEventsScore": 8.7
+        },
+        {
+          "name": "Zanzibar (Stone Town)",
+          "highlights": ["World heritage site", "Beach and cultural tourism"],
+          "industry_focus": ["Hospitality and cultural training", "Marine NGO initiatives", "Culinary tourism"],
+          "trainingEventsScore": 7.5
+        },
+        {
+          "name": "Moshi",
+          "highlights": ["Mount Kilimanjaro base", "Tour guides and hostels"],
+          "industry_focus": ["Adventure hospitality", "Local training", "Environmental NGOs"],
+          "trainingEventsScore": 7.0
+        }
+      ]
+    },
+    {
+      "country": "Rwanda",
+      "towns": [
+        {
+          "name": "Kigali",
+          "highlights": ["Conference city", "Clean and safe", "Strong hospitality regulation"],
+          "industry_focus": ["Hospitality innovation", "NGO-hosted summits", "Smart tourism"],
+          "trainingEventsScore": 9.2
+        },
+        {
+          "name": "Musanze (Ruhengeri)",
+          "highlights": ["Volcano tourism", "Gorilla trekking", "Community lodges"],
+          "industry_focus": ["Ecotourism training", "Community hospitality", "NGO conservation"],
+          "trainingEventsScore": 8.0
+        },
+        {
+          "name": "Rubavu (Gisenyi)",
+          "highlights": ["Lake Kivu tourism", "Beach hotels", "Border trade"],
+          "industry_focus": ["Hospitality and events", "Cross-border NGO programs", "Wellness tourism"],
+          "trainingEventsScore": 7.6
+        }
+      ]
+    },
+    {
+      "country": "Ethiopia",
+      "towns": [
+        {
+          "name": "Addis Ababa",
+          "highlights": ["African Union HQ", "NGO capital", "International hospitality chains"],
+          "industry_focus": ["Hospitality management", "Diplomatic tourism", "NGO training"],
+          "trainingEventsScore": 9.6
+        },
+        {
+          "name": "Bahir Dar",
+          "highlights": ["Lake Tana tourism", "Blue Nile Falls proximity"],
+          "industry_focus": ["Ecotourism and hospitality", "Community enterprises", "Water-related NGOs"],
+          "trainingEventsScore": 7.8
+        },
+        {
+          "name": "Lalibela",
+          "highlights": ["Historical and pilgrimage tourism"],
+          "industry_focus": ["Heritage hospitality", "Tourism education", "Cultural NGOs"],
+          "trainingEventsScore": 7.1
+        },
+        {
+          "name": "Hawassa",
+          "highlights": ["Industrial park city", "Hotel growth", "Youth training initiatives"],
+          "industry_focus": ["Hospitality and catering", "NGO workforce programs", "Urban tourism"],
+          "trainingEventsScore": 8.3
+        }
+      ]
+    }
+  ]
+}
