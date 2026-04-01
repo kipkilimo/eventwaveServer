@@ -85,7 +85,7 @@ const EventSchema = new Schema<IEvent>(
     title: { type: String, required: true },
     description: { type: String },
     eventSecret: { type: String, required: true, unique: true },
-    eventKey: { type: String, required: true, unique: true }, // Add eventKey field
+    eventKey: { type: String, required: true, unique: false }, // Add eventKey field
     organizer: { type: Schema.Types.ObjectId, ref: "User", required: true },
     organization: { type: Schema.Types.ObjectId, ref: "Organization" },
     eventType: {
@@ -197,7 +197,9 @@ EventSchema.pre("save", function (next) {
       this.dateTime.end.getTime() - this.dateTime.start.getTime();
     const durationHours = durationMs / (1000 * 60 * 60);
     const durationMinutes = durationMs / (1000 * 60);
-    const durationDays = durationMs / (1000 * 60 * 60 * 24);
+    const durationDays = Number(
+      (durationMs / (1000 * 60 * 60 * 24)).toFixed(5),
+    );
 
     this.eventDuration = {
       milliseconds: durationMs,

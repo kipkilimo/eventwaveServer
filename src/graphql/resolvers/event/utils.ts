@@ -1,7 +1,19 @@
 // src/graphql/resolvers/event/utils.ts
 import crypto from "crypto";
 import { Event } from "../../../models/Event";
+const usedKeys = new Set<string>();
 
+export function createEventKey(): string {
+  let key: string;
+
+  do {
+    key = Math.floor(100000 + Math.random() * 900000).toString();
+  } while (usedKeys.has(key));
+
+  usedKeys.add(key);
+
+  return key;
+}
 export const normalizeEvent = (event: any) => {
   if (!event) return event;
   return {

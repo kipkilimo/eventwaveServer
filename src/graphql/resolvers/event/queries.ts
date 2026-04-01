@@ -186,13 +186,16 @@ export const Query = {
   async userFacilitatingEvents(_: any, { userId }: { userId: string }) {
     if (!Types.ObjectId.isValid(userId))
       throw new Error("Invalid organizer ID");
-    const events = await Event.find({
-      $or: [{ organizer: userId }, { facilitators: userId }],
-    })
-      .select({
+
+    const events = await Event.find(
+      {
+        $or: [{ organizer: userId }, { facilitators: userId }],
+      },
+      {
         _id: 1,
         title: 1,
         eventSecret: 1,
+        isFreeEvent: 1,
         status: 1,
         eventType: 1,
         "dateTime.start": 1,
@@ -203,11 +206,14 @@ export const Query = {
         participants: 1,
         organizer: 1,
         facilitators: 1,
-      })
+        createdAt: 1,
+      },
+    )
       .populate({ path: "organizer", select: "_id name" })
       .populate({ path: "facilitators", select: "_id name" })
       .sort({ "dateTime.start": 1 })
       .lean();
+
     return events.map(normalizeEvent);
   },
 

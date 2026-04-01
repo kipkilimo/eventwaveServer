@@ -24,7 +24,7 @@ export const emailHeader = `
           <img 
             src="https://a2z-v0.s3.eu-central-1.amazonaws.com/logo.png"
             alt="${BRAND.name}"
-            style="height: 62px; width: auto; display: block;"
+            style="height: 84px; width: auto; display: block;"
           />
         </td>
 

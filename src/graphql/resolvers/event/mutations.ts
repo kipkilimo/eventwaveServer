@@ -10,12 +10,57 @@ import {
   generateUniqueEventKey,
   calculateEventDuration,
   calculateEventPrice,
+  createEventKey,
   isShortEvent,
   checkEventOverlap,
 } from "./utils";
 import { generateQrPdf, createEventSummaryEmail } from "./helpers";
 import { emailFooter } from "../../../utils/emailFooter";
 
+import { emailHeader } from "../../../utils/emailHeader";
+
+// Color theme from your design system
+const theme = {
+  dark: false,
+  colors: {
+    primary: "#2A73C5",
+    "primary-darken-1": "#2363A9",
+    "primary-lighten-1": "#4A8ED4",
+    secondary: "#5E60CE",
+    accent: "#3D8BFF",
+    success: "#2EBD85",
+    warning: "#F4B740",
+    error: "#E05658",
+    info: "#3AB0FF",
+    background: "#F5F7FA",
+    surface: "#FFFFFF",
+  },
+};
+
+type EventPlan = "FREE" | "BUSINESS";
+function resolveEventPlan(event: any): EventPlan {
+  return event?.isFreeEvent ? "FREE" : "BUSINESS";
+}
+function getPlanConfig(plan: EventPlan) {
+  switch (plan) {
+    case "BUSINESS":
+      return {
+        label: "✦ BUSINESS EVENT ✦",
+        billing: "Billing applies based on your plan",
+        note: "This event is covered under your active business plan.",
+        statusSuffix: "— active billing",
+      };
+
+    case "FREE":
+    default:
+      return {
+        label: "✦ FREE EVENT ✦",
+        billing: "Free tier limits apply",
+        note: "This event is running under the free plan. Upgrade to unlock more features.",
+        statusSuffix: "— limited features",
+      };
+  }
+}
 // ==============================================================
 // FREE EVENT MUTATION
 // ==============================================================
@@ -64,7 +109,7 @@ export const createFreeEvent = async (
     }
 
     const eventSecret = await generateUniqueEventSecret();
-    const eventKey = await generateUniqueEventKey();
+    const eventKey = createEventKey();
     const maxCapacity =
       typeof input.capacity === "number" ? input.capacity : 50;
 
@@ -112,7 +157,7 @@ export const createFreeEvent = async (
         address: event.location.address,
       },
       eventSecret: event.eventSecret,
-      eventKey: event.eventKey,
+      eventKey: event.eventSecret,
     };
 
     pdfPath = await generateQrPdf(pdfDetails);
@@ -123,7 +168,7 @@ export const createFreeEvent = async (
       thisUser.email,
       `✨ FREE Event Created - ${event.title} ✨`,
       emailBody,
-      [{ filename: `${event.eventKey}-qr-access.pdf`, path: pdfPath }],
+      [{ filename: `${event.eventSecret}-qr-access.pdf`, path: pdfPath }],
     );
 
     return await event.populate("organizer");
@@ -217,7 +262,7 @@ export const createStandardEvent = async (
       );
 
     const eventSecret = await generateUniqueEventSecret();
-    const eventKey = await generateUniqueEventKey();
+    const eventKey = createEventKey();
     const { days, originalAmount, discountAmount, finalAmount } =
       calculateEventPrice(durationMs);
     const invoiceNumber = `INV-${Date.now()}-${eventKey}`;
@@ -310,7 +355,7 @@ export const createStandardEvent = async (
         address: event.location.address,
       },
       eventSecret: event.eventSecret,
-      eventKey: event.eventKey,
+      eventKey: event.eventSecret,
     };
 
     pdfPath = await generateQrPdf(pdfDetails);
@@ -432,7 +477,7 @@ export const createEnterpriseEvent = async (
       );
 
     const eventSecret = await generateUniqueEventSecret();
-    const eventKey = await generateUniqueEventKey();
+    const eventKey = createEventKey();
     const maxCapacity =
       typeof input.capacity === "number" ? input.capacity : 100;
 
@@ -517,50 +562,193 @@ export const createEnterpriseEvent = async (
     };
 
     pdfPath = await generateQrPdf(pdfDetails);
+    function formatEventRange(range: string): string {
+      const [startStr, endStr] = range.split(" - ").map((s) => s.trim());
 
+      const start = new Date(startStr);
+      const end = new Date(endStr);
+
+      const sameDay =
+        start.getFullYear() === end.getFullYear() &&
+        start.getMonth() === end.getMonth() &&
+        start.getDate() === end.getDate();
+
+      const formatDateWithDay = (d: Date) =>
+        `${d.toLocaleDateString("en-US", {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        })}`;
+
+      const formatDate = (d: Date) =>
+        `${d.toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        })}`;
+
+      const formatTime = (d: Date) =>
+        d.toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        });
+
+      if (sameDay) {
+        return `${formatDateWithDay(start)} ${formatTime(start)} to ${formatTime(end)}`;
+      }
+
+      return `${formatDate(start)} ${formatTime(start)} to ${formatDate(end)} ${formatTime(end)}`;
+    }
+    const planConfig = getPlanConfig(resolveEventPlan(event));
+    const styledFooter = emailFooter.replace(
+      'style="font-family: Arial, sans-serif; background-color: #f4f5f7; padding: 20px; text-align: center; color: #6c757d; font-size: 12px;"',
+      `style="background-color:${theme.colors.background}; padding:16px; text-align:center; color:#7f8c8d; font-size:12px; border-top:1px solid #e9ecef;"`,
+    );
+    // Extract color constants
+    const backgroundColor = theme.colors.background;
+    const surfaceColor = theme.colors.surface;
+    const primaryColor = theme.colors.primary;
+    const secondaryColor = theme.colors.secondary;
+    const successColor = theme.colors.success;
+    const warningColor = theme.colors.warning;
+    const errorColor = theme.colors.error;
+    const textColor = "#1A2C3E";
+    const textMuted = "#6C757D";
+
+    // Authentication email template
     const emailBody = `
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 20px; }
-  .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #e0e0e0; }
-  .header { background-color: #6f42c1; color: white; padding: 20px; text-align: center; }
-  .header h1 { font-size: 24px; margin: 0; font-weight: 600; }
-  .content { padding: 24px; }
-  .enterprise-badge { background-color: #6f42c1; color: white; padding: 5px 10px; border-radius: 4px; display: inline-block; font-size: 12px; font-weight: bold; }
-  .footer { font-size: 12px; color: #888; text-align: center; padding: 20px; border-top: 1px solid #e0e0e0; background: #f9f9f9; }
-</style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>${event.title}</h1>
-      <p><span class="enterprise-badge">ENTERPRISE EVENT</span></p>
-    </div>
-    <div class="content">
-      <h2>Event Details</h2>
-      <p><strong>Event Key:</strong> ${event.eventKey}</p>
-      <p><strong>Event Secret:</strong> ${event.eventSecret}</p>
-      <p><strong>Date:</strong> ${startDate.toLocaleString()} - ${endDate.toLocaleString()}</p>
-      <p><strong>Location:</strong> ${locationData.name}</p>
-      <p><strong>Organization:</strong> ${organization.name}</p>
-      <p><strong>Status:</strong> Active (pre-agreed billing)</p>
-      <p>This event has been created under your enterprise agreement. No invoice will be generated for this event.</p>
-      <p>Please find attached your QR code for event access.</p>
-    </div>
-    ${emailFooter}
-  </div>
-</body>
-</html>
+<div style="margin:0; padding:0; background-color: ${backgroundColor};">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: ${backgroundColor}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
+    <tr>
+      <td align="center" style="padding: 16px;">
+        
+        <!-- Main Container: identical max-width, background, border-radius, overflow to auth container -->
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; background-color: ${surfaceColor}; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+          
+          <!-- Header (dynamic from emailHeader) - same as auth template -->
+          <tr>
+            <td>
+              ${emailHeader}
+            </td>
+          </tr>
+
+          <!-- Event Hero / Gradient Banner (custom for notification but using theme colors) -->
+          <tr>
+            <td style="background: linear-gradient(135deg, ${primaryColor}, ${secondaryColor}); padding: 20px 24px; text-align: center; color: #ffffff;">
+              <h1 style="margin: 0 0 4px 0; font-size: 22px; font-weight: 700; letter-spacing: -0.2px;">
+                ${event.title}
+              </h1>
+              <div style="margin-top: 10px; display: inline-block; padding: 4px 14px; border-radius: 30px; background: rgba(255,255,255,0.2); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                ${planConfig.label}
+              </div>
+            </td>
+          </tr>
+
+          <!-- Main Content Area: uses same padding as auth email (24px 16px) -->
+          <tr>
+            <td style="padding: 24px 16px;">
+              
+              <!-- Event Secret Section (styled like auth security block but light version) -->
+              <div style="margin-bottom: 20px;">
+                <p style="margin: 0 0 6px 0; font-size: 12px; font-weight: 500; color: ${textMuted}; letter-spacing: 0.3px;">Event Secret</p>
+                <div style="background-color: ${backgroundColor}; padding: 8px 12px; border-radius: 8px; border: 1px solid #e9ecef; display: inline-block;">
+                  <span style="font-family: monospace; font-size: 13px; color: ${primaryColor}; font-weight: 500;">${event.eventSecret}</span>
+                </div>
+              </div>
+              
+              <!-- Date & Time -->
+              <p style="margin: 0 0 6px 0; font-size: 12px; font-weight: 500; color: ${textMuted};">Date & Time</p>
+              <p style="margin: 0 0 18px 0; font-size: 14px; color: ${textColor}; line-height: 1.4;">
+                ${formatEventRange(event.dateTime.start.toISOString() + " - " + event.dateTime.end.toISOString())}
+              </p>
+              
+              <!-- Location -->
+              <p style="margin: 0 0 6px 0; font-size: 12px; font-weight: 500; color: ${textMuted};">Location</p>
+              <p style="margin: 0 0 18px 0; font-size: 14px; color: ${textColor};">
+                ${locationData.name}<br/>
+                <span style="font-size: 12px; color: ${textMuted};">${locationData.address}</span>
+              </p>
+              
+              <!-- Organization -->
+              <p style="margin: 0 0 6px 0; font-size: 12px; font-weight: 500; color: ${textMuted};">Organization</p>
+              <p style="margin: 0 0 18px 0; font-size: 14px; color: ${textColor};">
+                ${organization.name}
+              </p>
+              
+              <!-- Status (with badge style that matches auth subtle styles) -->
+              <p style="margin: 0 0 6px 0; font-size: 12px; font-weight: 500; color: ${textMuted};">Status</p>
+              <p style="margin: 0 0 18px 0; font-size: 14px; color: ${textColor};">
+                <span style="background: #e6f4ea; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; color: #1e7b48;">Active</span>
+                ${planConfig.statusSuffix}
+              </p>
+              
+              <!-- Billing -->
+              <p style="margin: 0 0 6px 0; font-size: 12px; font-weight: 500; color: ${textMuted};">Billing</p>
+              <p style="margin: 0 0 18px 0; font-size: 14px; color: ${textColor};">
+                ${planConfig.billing}
+              </p>
+              
+              <!-- NOTE: styled exactly like the security notice box in auth template (background, border-left, padding, rounded) -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 18px;">
+                <tr>
+                  <td style="background-color: ${backgroundColor}; padding: 14px; border-radius: 8px; border-left: 4px solid ${primaryColor};">
+                    <p style="margin: 0; font-size: 13px; color: ${textColor}; line-height: 1.4;">
+                      <strong>📌 Note:</strong> ${planConfig.note}
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- QR Highlight: matches similar info block style with background and border, like fallback URL style -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 8px;">
+                <tr>
+                  <td style="background-color: ${backgroundColor}; padding: 14px; border-radius: 8px; border: 1px solid #e9ecef;">
+                    <p style="margin: 0; font-size: 13px; color: ${textColor};">
+                      <strong>📱 QR Code Attached</strong><br/>
+                      Use the QR code for seamless event check-in.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- Optional divider to match auth email divider style (height, background, margin) -->
+              <div style="height: 1px; background-color: #e9ecef; margin: 24px 0 16px 0;"></div>
+              
+              <!-- Additional info: same muted text as footer note in auth -->
+              <p style="margin: 0; font-size: 12px; color: ${textMuted}; text-align: center;">
+                This is a notification regarding your event "${event.title}". If you have any questions, contact support.
+              </p>
+            
+            </td>
+          </tr>
+          
+          <!-- Footer: using same approach as auth template (dynamic emailFooter but styled with theme) -->
+          <tr>
+            <td>
+              ${styledFooter}
+            </td>
+          </tr>
+        
+        </table> <!-- end container -->
+      
+      </td>
+    </tr>
+  </table>
+</div>
 `;
 
     await sendEmail(
       thisUser.email,
       `🎉 Enterprise Event Created - ${event.title}`,
       emailBody,
-      [{ filename: `${event.eventKey}-qr-access.pdf`, path: pdfPath }],
+      [
+        {
+          filename: `${event.title}-${event.eventSecret}-qr-access.pdf`,
+          path: pdfPath,
+        },
+      ],
     );
 
     return await event.populate("organizer organization");

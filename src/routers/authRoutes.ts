@@ -329,15 +329,26 @@ const generateEmailHTML = (
 // -------------------------------------------------------
 // 6. HANDLERS
 // -------------------------------------------------------
+// Helper function to get valid enum values for a field
+const getValidEnumValues = (model: any, path: string): string[] => {
+  try {
+    const schemaPath = model.schema.path(path);
+    if (schemaPath && schemaPath.enumValues) {
+      return schemaPath.enumValues;
+    }
+    return [];
+  } catch (error) {
+    return [];
+  }
+};
 
 const uploadOrgPDF = async (
   req: Request,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  // Fixed: Proper type assertion with unknown first
   const uploadReq = req as unknown as UploadRequest;
-  const { orgId } = uploadReq.query;
+  const { orgId, documentType = "ENTERPRISE_CONTRACT" } = uploadReq.query; // Allow specifying type via query param
 
   try {
     // Validate organization exists
@@ -355,11 +366,42 @@ const uploadOrgPDF = async (
       return;
     }
 
-    // Update database
+    // Validate document type against enum
+    const validTypes = [
+      "TERMS_OF_SERVICE",
+      "PRIVACY_POLICY",
+      "DATA_PROCESSING_AGREEMENT",
+      "SERVICE_LEVEL_AGREEMENT",
+      "ENTERPRISE_CONTRACT",
+    ];
+
+    const selectedType = documentType as string;
+    if (!validTypes.includes(selectedType)) {
+      // Cleanup uploaded file if validation fails
+      await cleanupS3File(uploadedFile);
+      res.status(400).json({
+        message: `Invalid document type. Must be one of: ${validTypes.join(", ")}`,
+      });
+      return;
+    }
+
+    // Calculate next version number (as string)
+    const currentDocuments = organization.orgLegalDocuments || [];
+    const nextVersion = String(currentDocuments.length + 1);
+
+    // Update database with correct schema fields
     const updatedOrg = await Organization.findByIdAndUpdate(
       orgId,
       {
-        orgLegalDocuments: uploadedFile.location,
+        $push: {
+          orgLegalDocuments: {
+            type: selectedType,
+            url: uploadedFile.location,
+            version: nextVersion,
+            signedAt: new Date(),
+            // signedBy: req.user?.id, // Add if you have authenticated user
+          },
+        },
         updatedAt: new Date(),
       },
       { new: true, runValidators: true },
@@ -369,7 +411,8 @@ const uploadOrgPDF = async (
       message: "PDF uploaded successfully",
       url: uploadedFile.location,
       organization: updatedOrg?.name,
-      documentType: "legal",
+      documentType: selectedType,
+      version: nextVersion,
     });
   } catch (err) {
     // Cleanup S3 file on error

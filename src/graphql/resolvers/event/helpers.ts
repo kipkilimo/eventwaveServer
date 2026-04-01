@@ -1,13 +1,27 @@
+// -------------------------------------
 // src/graphql/resolvers/event/helpers.ts
+// -------------------------------------
+
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
 import fs from "fs";
-import * as path from "path";
+import path from "path";
 import { promises as fsPromises } from "fs";
 import { emailFooter } from "../../../utils/emailFooter";
+import { emailHeader } from "../../../utils/emailHeader";
 
 const DAILY_RATE = 5.65;
 
+// -------------------------------------
+// Paths (SAFE across dev + prod)
+// -------------------------------------
+const ROOT_DIR = process.cwd();
+const TMP_DIR = path.join(ROOT_DIR, "tmp");
+const ASSETS_DIR = path.join(ROOT_DIR, "assets");
+
+// -------------------------------------
+// Types
+// -------------------------------------
 interface EventDetailsForPdf {
   title: string;
   location: { name: string; address: string };
@@ -27,9 +41,57 @@ interface InvoiceData {
   finalAmount?: number;
 }
 
+// -------------------------------------
+// Utilities
+// -------------------------------------
+const ensureDir = async (dir: string) => {
+  await fsPromises.mkdir(dir, { recursive: true });
+};
+
+const fileExists = async (p: string) => {
+  try {
+    await fsPromises.access(p);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// -------------------------------------
+// Human-friendly date range
+// -------------------------------------
+export function formatEventRange(start: Date, end: Date): string {
+  const sameDay = start.toDateString() === end.toDateString();
+
+  const formatDate = (d: Date, withDay = false) =>
+    d.toLocaleDateString("en-US", {
+      weekday: withDay ? "long" : undefined,
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+
+  const formatTime = (d: Date) =>
+    d.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+
+  return sameDay
+    ? `${formatDate(start, true)} ${formatTime(start)} to ${formatTime(end)}`
+    : `${formatDate(start)} ${formatTime(start)} to ${formatDate(end)} ${formatTime(end)}`;
+}
+
+// -------------------------------------
+// QR PDF generator (enhanced styling)
+// -------------------------------------
+// -------------------------------------
+// QR PDF generator (WhatsApp-style)
+// -------------------------------------
 export async function generateQrPdf(
   eventData: EventDetailsForPdf,
-  logoFilename: string = "countysquare-4-3-21.png",
+  logoFilename = "countysquare-4-3-21.png",
 ): Promise<string> {
   const baseUrl =
     process.env.NODE_ENV === "production"
@@ -37,143 +99,175 @@ export async function generateQrPdf(
       : "http://localhost:5173/login";
 
   const qrUrl = `${baseUrl}?eventSecret=${eventData.eventSecret}`;
-  const tmpDir = path.join(__dirname, "../../../tmp");
-  const pdfPath = path.join(tmpDir, `${eventData.eventKey}-qr-access.pdf`);
-  const logoPath = path.join(__dirname, `../../../${logoFilename}`);
+  const pdfPath = path.join(TMP_DIR, `${eventData.eventSecret}-qr.pdf`);
+  const logoPath = path.join(ASSETS_DIR, logoFilename);
+
+  await ensureDir(TMP_DIR);
 
   try {
-    await fsPromises.mkdir(tmpDir, { recursive: true });
-
-    const files = await fsPromises.readdir(tmpDir);
-    await Promise.all(
-      files.map((file) =>
-        fsPromises.rm(path.join(tmpDir, file), {
-          force: true,
-          recursive: true,
-        }),
-      ),
-    );
-  } catch (error) {
-    console.error("Error preparing tmp directory:", error);
-  }
-
-  try {
-    const qrCodeSize = 630;
-    const increasedSize = Math.round(qrCodeSize * 1.12);
-    const qrDataUrl = await QRCode.toDataURL(qrUrl, {
+    // -------------------------
+    // Generate QR
+    // -------------------------
+    const qrBuffer = await QRCode.toBuffer(qrUrl, {
       errorCorrectionLevel: "H",
       margin: 1,
-      width: increasedSize,
-      color: { dark: "#000000", light: "#FFFFFF" },
+      width: 750,
     });
 
-    const qrBuffer = Buffer.from(
-      qrDataUrl.replace(/^data:image\/png;base64,/, ""),
-      "base64",
-    );
+    // -------------------------
+    // Setup PDF
+    // -------------------------
     const doc = new PDFDocument({ size: "A4", margin: 50 });
-    const writeStream = fs.createWriteStream(pdfPath);
-    doc.pipe(writeStream);
+    const stream = fs.createWriteStream(pdfPath);
+    doc.pipe(stream);
 
-    const streamClosed = new Promise<void>((resolve, reject) => {
-      writeStream.on("finish", resolve);
-      writeStream.on("error", reject);
+    const done = new Promise<void>((res, rej) => {
+      stream.on("finish", res);
+      stream.on("error", rej);
     });
 
+    // -------------------------
+    // Header
+    // -------------------------
     doc
       .font("Helvetica-Bold")
-      .fontSize(24)
+      .fontSize(22)
       .text(eventData.title, { align: "center" });
+
     doc.moveDown(0.5);
+
     doc
       .font("Helvetica")
-      .fontSize(16)
-      .text(eventData.location.name, { align: "center" });
-    doc.fontSize(12).text(eventData.location.address, { align: "center" });
-    doc.moveDown(1.5);
-    doc
-      .font("Helvetica-Oblique")
-      .fontSize(10)
-      .text(`Access Link: ${qrUrl}`, { align: "center" });
-    doc.moveDown(0.5);
+      .fontSize(14)
+      .text(eventData.location.name, { align: "center" })
+      .text(eventData.location.address, { align: "center" });
 
-    const qrSize = 280;
+    doc.moveDown(1);
+
+    doc.fontSize(10).text(qrUrl, { align: "center" });
+
+    doc.moveDown(1.5);
+
+    // -------------------------
+    // QR placement (25% larger)
+    // -------------------------
+    const qrSize = 325;
     const pageWidth =
       doc.page.width - doc.page.margins.left - doc.page.margins.right;
+
     const qrX = doc.page.margins.left + (pageWidth - qrSize) / 2;
-    const qrY = doc.y + 10;
+    const qrY = doc.y;
 
-    doc.image(qrBuffer, qrX, qrY, { width: qrSize, height: qrSize });
+    doc.image(qrBuffer, qrX, qrY, { width: qrSize });
 
-    try {
-      await fsPromises.access(logoPath);
-      doc.save();
-
+    // -------------------------
+    // WhatsApp-style Logo overlay
+    // (Logo centered with rings)
+    // -------------------------
+    if (await fileExists(logoPath)) {
       const centerX = qrX + qrSize / 2;
       const centerY = qrY + qrSize / 2;
 
-      const logoSize = qrSize * 0.24;
-      const ringThickness = logoSize * 0.08;
-      const ringRadius = logoSize / 2;
-      const logoImageSize = logoSize - ringThickness * 2;
+      // Logo size (20% of QR)
+      const logoSize = qrSize * 0.2;
+      const logoX = centerX - logoSize / 2;
+      const logoY = centerY - logoSize / 2;
+      const baseRadius = logoSize / 2;
+      // Ring thicknesses (WhatsApp style)
+      const outerThickness = logoSize * 0.06; // Reduced by 50% (was 0.12)
+      const whiteThickness = logoSize * 0.045; // Thin white ring
+      const innerThickness = logoSize * 0.045; // Thin inner ring
 
+      // White background for clean ring separation
       doc
-        .circle(centerX, centerY, ringRadius + ringThickness)
-        .fillOpacity(1)
-        .fill("#FFFFFF");
+        .save()
+        .circle(centerX, centerY, baseRadius + outerThickness + 2)
+        .fill("#FFFFFF")
+        .restore();
 
+      // Outer ring (thick black)
       doc
-        .circle(centerX, centerY, ringRadius)
-        .lineWidth(ringThickness)
-        .strokeColor("#000000")
-        .stroke();
+        .save()
+        .circle(centerX, centerY, baseRadius + outerThickness / 2)
+        .lineWidth(outerThickness)
+        .stroke("#000000")
+        .restore();
 
-      doc.circle(centerX, centerY, logoImageSize / 2).clip();
+      // Middle ring (thin white)
+      doc
+        .save()
+        .circle(
+          centerX,
+          centerY,
+          baseRadius - outerThickness / 2 + whiteThickness / 2,
+        )
+        .lineWidth(whiteThickness)
+        .stroke("#FFFFFF")
+        .restore();
 
-      const logoX = centerX - logoImageSize / 2;
-      const logoY = centerY - logoImageSize / 2;
+      // Inner ring (thin black)
+      doc
+        .save()
+        .circle(
+          centerX,
+          centerY,
+          baseRadius - outerThickness / 2 - whiteThickness + innerThickness / 2,
+        )
+        .lineWidth(innerThickness)
+        .stroke("#000000")
+        .restore();
 
-      doc.image(logoPath, logoX, logoY, {
-        width: logoImageSize,
-        height: logoImageSize,
-        fit: [logoImageSize, logoImageSize],
-      });
-
-      doc.restore();
-
+      // Logo (clipped circle)
       doc.save();
-      doc
-        .circle(centerX, centerY, ringRadius + ringThickness + 1)
-        .fillOpacity(0.05)
-        .fill("#000000");
+      doc.circle(centerX, centerY, baseRadius - 2).clip();
+      doc.image(logoPath, logoX, logoY, {
+        width: logoSize,
+        height: logoSize,
+      });
       doc.restore();
-    } catch (error) {
-      console.log(`Logo not found at ${logoPath}, skipping...`);
+    } else {
+      console.warn("Logo not found:", logoPath);
     }
 
-    doc.moveDown(1);
-    doc.y = qrY + qrSize + 20;
+    // -------------------------
+    // Footer (Centered)
+    // -------------------------
+    doc.y = qrY + qrSize + 35;
+
+    // Main text - SCAN HERE TO CHECK IN
+    doc.font("Helvetica-Bold").fontSize(18).text("SCAN HERE TO CHECK IN", {
+      align: "center",
+      lineGap: 5,
+    });
+
+    doc.moveDown(0.5);
+
+    // Event ID
     doc
       .font("Helvetica")
-      .fontSize(18)
-      .text("SCAN HERE TO CHECK IN", { align: "center" });
-    doc.moveDown(0.5);
-    doc
-      .fontSize(14)
-      .text(`Event Key: ${eventData.eventKey}`, { align: "center" });
+      .fontSize(12)
+      .text(`Event ID: ${eventData.eventSecret}`, {
+        align: "center",
+        lineGap: 3,
+      });
 
     doc.end();
-    await streamClosed;
+    await done;
+
     return pdfPath;
-  } catch (error) {
-    console.error("Error during QR PDF generation:", error);
-    try {
+  } catch (err) {
+    console.error("QR PDF generation failed:", err);
+
+    if (await fileExists(pdfPath)) {
       await fsPromises.unlink(pdfPath);
-    } catch (unlinkError) {}
-    throw new Error("Failed to generate the QR code PDF.");
+    }
+
+    throw new Error("Failed to generate QR PDF");
   }
 }
-
+// -------------------------------------
+// Event Summary Email
+// -------------------------------------
 export const createEventSummaryEmail = (
   event: any,
   organization: any,
@@ -191,29 +285,17 @@ export const createEventSummaryEmail = (
     return `${currency} ${parseFloat(amount.toString()).toFixed(2)}`;
   };
 
-  const locationName = `${event.address}, ${event.location?.name || "TBD"}`;
+  const locationName = `${event.location?.address}, ${event.location?.name || "TBD"}`;
+
+  // ✅ Use human-friendly date range
+  const humanDateRange = formatEventRange(start, end);
 
   return `
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 20px; }
-  .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #e0e0e0; }
-  .header { background-color: ${isFreeEvent ? "#1d8a4a" : "#007bff"}; color: white; padding: 20px; text-align: center; }
-  .header h1 { font-size: 24px; margin: 0; font-weight: 600; }
-  .header p { font-size: 14px; margin-top: 5px; opacity: 0.9; }
-  .content { padding: 24px; }
-  h2 { font-size: 20px; color: #333; margin: 0 0 20px 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; }
-  .data-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-  .data-item { padding: 10px 15px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
-  .label { color: #777; font-size: 12px; margin-bottom: 2px; display: block; text-transform: uppercase; font-weight: 500; }
-  .value { color: #333; font-size: 14px; font-weight: 600; }
-  .free-badge { background-color: #28a745; color: white; padding: 5px 10px; border-radius: 4px; display: inline-block; font-size: 12px; font-weight: bold; }
-  .footer { font-size: 12px; color: #888; text-align: center; padding: 20px; border-top: 1px solid #e0e0e0; background: #f9f9f9; }
-  .invoice-details { background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 20px; }
-</style>
+${emailHeader}
 </head>
 <body>
   <div class="container">
@@ -226,13 +308,19 @@ export const createEventSummaryEmail = (
       <table class="data-table">
         <tr>
           <td class="data-item"><span class="label">Event Type</span><span class="value">${event.eventType}</span></td>
-          <td class="data-item"><span class="label">Duration</span><span class="value">${durationHours} hours (${durationDays} days)</span></td>
-          <td class="data-item"><span class="label">Event Key</span><span class="value">${event.eventSecret}</span></td>
+          <td class="data-item">
+  <span class="label">Duration</span>
+  <span class="value">
+    ${durationHours} hours${durationHours >= 24 ? ` (${durationDays} days)` : ""}
+  </span>
+</td>
+          <td class="data-item"><span class="label">Event ID</span><span class="value">${event.eventSecret}</span></td>
         </tr>
         <tr>
-          <td class="data-item"><span class="label">Start Date</span><span class="value">${start.toLocaleString()}</span></td>
-          <td class="data-item"><span class="label">End Date</span><span class="value">${end.toLocaleString()}</span></td>
-          <td class="data-item"><span class="label">Location</span><span class="value">${locationName}</span></td>
+          <td class="data-item" colspan="3"><span class="label">Event Date & Time</span><span class="value">${humanDateRange}</span></td>
+        </tr>
+        <tr>
+          <td class="data-item" colspan="3"><span class="label">Location</span><span class="value">${locationName}</span></td>
         </tr>
       </table>
       

@@ -20,7 +20,7 @@ export const sendEmail = async (
   to: string | string[],
   subject: string,
   htmlContent: string,
-  attachments: EmailAttachment[] = []
+  attachments: EmailAttachment[] = [],
 ): Promise<boolean> => {
   try {
     // Create SMTP transporter
@@ -32,7 +32,7 @@ export const sendEmail = async (
         user: process.env.SMTP_USER, // Brevo relay user
         pass: process.env.SMTP_PASS, // Brevo SMTP key
       },
-      logger: true, // for detailed connection logs
+      logger: false, // for detailed connection logs
       debug: true,
     });
 
@@ -47,28 +47,33 @@ export const sendEmail = async (
 
     // Process attachments to handle both path and content
     if (attachments.length > 0) {
-      mailOptions.attachments = attachments.map(attachment => {
-        // If path is provided, use it (existing behavior)
-        if (attachment.path) {
-          return {
-            filename: attachment.filename,
-            path: attachment.path,
-            contentType: attachment.contentType,
-          };
-        }
-        // If content is provided (Buffer or string), use it
-        else if (attachment.content) {
-          return {
-            filename: attachment.filename,
-            content: attachment.content,
-            contentType: attachment.contentType || 'application/octet-stream',
-            encoding: attachment.encoding,
-          };
-        }
-        // Invalid attachment - missing both path and content
-        console.warn('Invalid attachment missing both path and content:', attachment.filename);
-        return null;
-      }).filter(Boolean); // Remove null entries
+      mailOptions.attachments = attachments
+        .map((attachment) => {
+          // If path is provided, use it (existing behavior)
+          if (attachment.path) {
+            return {
+              filename: attachment.filename,
+              path: attachment.path,
+              contentType: attachment.contentType,
+            };
+          }
+          // If content is provided (Buffer or string), use it
+          else if (attachment.content) {
+            return {
+              filename: attachment.filename,
+              content: attachment.content,
+              contentType: attachment.contentType || "application/octet-stream",
+              encoding: attachment.encoding,
+            };
+          }
+          // Invalid attachment - missing both path and content
+          console.warn(
+            "Invalid attachment missing both path and content:",
+            attachment.filename,
+          );
+          return null;
+        })
+        .filter(Boolean); // Remove null entries
     }
 
     // Send message
