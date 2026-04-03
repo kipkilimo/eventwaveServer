@@ -189,7 +189,21 @@ const EventSchema = new Schema<IEvent>(
     toObject: { virtuals: true },
   },
 );
+EventSchema.pre("validate", function (next) {
+  // FREE events do NOT require organization
+  if (this.isFreeEvent === true) {
+    return next();
+  }
 
+  // NON-free events MUST belong to an organization
+  if (!this.organization) {
+    return next(
+      new Error("Organization is required for paid or enterprise events"),
+    );
+  }
+
+  next();
+});
 // Pre-save middleware to calculate event duration
 EventSchema.pre("save", function (next) {
   if (this.dateTime && this.dateTime.start && this.dateTime.end) {

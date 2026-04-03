@@ -5,6 +5,11 @@ import { User } from "../../../models/User";
 import { Organization } from "../../../models/Organization";
 import { requireAuth } from "../../../utils/auth";
 import { sendEmail } from "../../../utils/emailHandler";
+
+import { ObjectId } from "mongodb";
+import { Db } from "mongodb";
+// import { PubSub } from "graphql-subscriptions";
+
 import {
   generateUniqueEventSecret,
   generateUniqueEventKey,
@@ -15,27 +20,6 @@ import {
   checkEventOverlap,
 } from "./utils";
 import { generateQrPdf, createEventSummaryEmail } from "./helpers";
-import { emailFooter } from "../../../utils/emailFooter";
-
-import { emailHeader } from "../../../utils/emailHeader";
-
-// Color theme from your design system
-const theme = {
-  dark: false,
-  colors: {
-    primary: "#2A73C5",
-    "primary-darken-1": "#2363A9",
-    "primary-lighten-1": "#4A8ED4",
-    secondary: "#5E60CE",
-    accent: "#3D8BFF",
-    success: "#2EBD85",
-    warning: "#F4B740",
-    error: "#E05658",
-    info: "#3AB0FF",
-    background: "#F5F7FA",
-    surface: "#FFFFFF",
-  },
-};
 
 type EventPlan = "FREE" | "BUSINESS";
 function resolveEventPlan(event: any): EventPlan {
@@ -168,7 +152,12 @@ export const createFreeEvent = async (
       thisUser.email,
       `✨ FREE Event Created - ${event.title} ✨`,
       emailBody,
-      [{ filename: `${event.eventSecret}-qr-access.pdf`, path: pdfPath }],
+      [
+        {
+          filename: `${event.title}-${event.eventSecret}-qr-access.pdf`,
+          path: pdfPath,
+        },
+      ],
     );
 
     return await event.populate("organizer");
@@ -562,194 +551,6 @@ export const createEnterpriseEvent = async (
     };
 
     pdfPath = await generateQrPdf(pdfDetails);
-    function formatEventRange(range: string): string {
-      const [startStr, endStr] = range.split(" - ").map((s) => s.trim());
-
-      const start = new Date(startStr);
-      const end = new Date(endStr);
-
-      const sameDay =
-        start.getFullYear() === end.getFullYear() &&
-        start.getMonth() === end.getMonth() &&
-        start.getDate() === end.getDate();
-
-      const formatDateWithDay = (d: Date) =>
-        `${d.toLocaleDateString("en-US", {
-          weekday: "long",
-          month: "long",
-          day: "numeric",
-          year: "numeric",
-        })}`;
-
-      const formatDate = (d: Date) =>
-        `${d.toLocaleDateString("en-US", {
-          month: "long",
-          day: "numeric",
-          year: "numeric",
-        })}`;
-
-      const formatTime = (d: Date) =>
-        d.toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-          hour12: true,
-        });
-
-      if (sameDay) {
-        return `${formatDateWithDay(start)} ${formatTime(start)} to ${formatTime(end)}`;
-      }
-
-      return `${formatDate(start)} ${formatTime(start)} to ${formatDate(end)} ${formatTime(end)}`;
-    }
-    const planConfig = getPlanConfig(resolveEventPlan(event));
-    const styledFooter = emailFooter.replace(
-      'style="font-family: Arial, sans-serif; background-color: #f4f5f7; padding: 20px; text-align: center; color: #6c757d; font-size: 12px;"',
-      `style="background-color:${theme.colors.background}; padding:16px; text-align:center; color:#7f8c8d; font-size:12px; border-top:1px solid #e9ecef;"`,
-    );
-    // Extract color constants
-    const backgroundColor = theme.colors.background;
-    const surfaceColor = theme.colors.surface;
-    const primaryColor = theme.colors.primary;
-    const secondaryColor = theme.colors.secondary;
-    const successColor = theme.colors.success;
-    const warningColor = theme.colors.warning;
-    const errorColor = theme.colors.error;
-    const textColor = "#1A2C3E";
-    const textMuted = "#6C757D";
-
-    // Authentication email template
-    const emailBody = `
-<div style="margin:0; padding:0; background-color: ${backgroundColor};">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: ${backgroundColor}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
-    <tr>
-      <td align="center" style="padding: 16px;">
-        
-        <!-- Main Container: identical max-width, background, border-radius, overflow to auth container -->
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; background-color: ${surfaceColor}; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-          
-          <!-- Header (dynamic from emailHeader) - same as auth template -->
-          <tr>
-            <td>
-              ${emailHeader}
-            </td>
-          </tr>
-
-          <!-- Event Hero / Gradient Banner (custom for notification but using theme colors) -->
-          <tr>
-            <td style="background: linear-gradient(135deg, ${primaryColor}, ${secondaryColor}); padding: 20px 24px; text-align: center; color: #ffffff;">
-              <h1 style="margin: 0 0 4px 0; font-size: 22px; font-weight: 700; letter-spacing: -0.2px;">
-                ${event.title}
-              </h1>
-              <div style="margin-top: 10px; display: inline-block; padding: 4px 14px; border-radius: 30px; background: rgba(255,255,255,0.2); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
-                ${planConfig.label}
-              </div>
-            </td>
-          </tr>
-
-          <!-- Main Content Area: uses same padding as auth email (24px 16px) -->
-          <tr>
-            <td style="padding: 24px 16px;">
-              
-              <!-- Event Secret Section (styled like auth security block but light version) -->
-              <div style="margin-bottom: 20px;">
-                <p style="margin: 0 0 6px 0; font-size: 12px; font-weight: 500; color: ${textMuted}; letter-spacing: 0.3px;">Event Secret</p>
-                <div style="background-color: ${backgroundColor}; padding: 8px 12px; border-radius: 8px; border: 1px solid #e9ecef; display: inline-block;">
-                  <span style="font-family: monospace; font-size: 13px; color: ${primaryColor}; font-weight: 500;">${event.eventSecret}</span>
-                </div>
-              </div>
-              
-              <!-- Date & Time -->
-              <p style="margin: 0 0 6px 0; font-size: 12px; font-weight: 500; color: ${textMuted};">Date & Time</p>
-              <p style="margin: 0 0 18px 0; font-size: 14px; color: ${textColor}; line-height: 1.4;">
-                ${formatEventRange(event.dateTime.start.toISOString() + " - " + event.dateTime.end.toISOString())}
-              </p>
-              
-              <!-- Location -->
-              <p style="margin: 0 0 6px 0; font-size: 12px; font-weight: 500; color: ${textMuted};">Location</p>
-              <p style="margin: 0 0 18px 0; font-size: 14px; color: ${textColor};">
-                ${locationData.name}<br/>
-                <span style="font-size: 12px; color: ${textMuted};">${locationData.address}</span>
-              </p>
-              
-              <!-- Organization -->
-              <p style="margin: 0 0 6px 0; font-size: 12px; font-weight: 500; color: ${textMuted};">Organization</p>
-              <p style="margin: 0 0 18px 0; font-size: 14px; color: ${textColor};">
-                ${organization.name}
-              </p>
-              
-              <!-- Status (with badge style that matches auth subtle styles) -->
-              <p style="margin: 0 0 6px 0; font-size: 12px; font-weight: 500; color: ${textMuted};">Status</p>
-              <p style="margin: 0 0 18px 0; font-size: 14px; color: ${textColor};">
-                <span style="background: #e6f4ea; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; color: #1e7b48;">Active</span>
-                ${planConfig.statusSuffix}
-              </p>
-              
-              <!-- Billing -->
-              <p style="margin: 0 0 6px 0; font-size: 12px; font-weight: 500; color: ${textMuted};">Billing</p>
-              <p style="margin: 0 0 18px 0; font-size: 14px; color: ${textColor};">
-                ${planConfig.billing}
-              </p>
-              
-              <!-- NOTE: styled exactly like the security notice box in auth template (background, border-left, padding, rounded) -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 18px;">
-                <tr>
-                  <td style="background-color: ${backgroundColor}; padding: 14px; border-radius: 8px; border-left: 4px solid ${primaryColor};">
-                    <p style="margin: 0; font-size: 13px; color: ${textColor}; line-height: 1.4;">
-                      <strong>📌 Note:</strong> ${planConfig.note}
-                    </p>
-                  </td>
-                </tr>
-              </table>
-              
-              <!-- QR Highlight: matches similar info block style with background and border, like fallback URL style -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 8px;">
-                <tr>
-                  <td style="background-color: ${backgroundColor}; padding: 14px; border-radius: 8px; border: 1px solid #e9ecef;">
-                    <p style="margin: 0; font-size: 13px; color: ${textColor};">
-                      <strong>📱 QR Code Attached</strong><br/>
-                      Use the QR code for seamless event check-in.
-                    </p>
-                  </td>
-                </tr>
-              </table>
-              
-              <!-- Optional divider to match auth email divider style (height, background, margin) -->
-              <div style="height: 1px; background-color: #e9ecef; margin: 24px 0 16px 0;"></div>
-              
-              <!-- Additional info: same muted text as footer note in auth -->
-              <p style="margin: 0; font-size: 12px; color: ${textMuted}; text-align: center;">
-                This is a notification regarding your event "${event.title}". If you have any questions, contact support.
-              </p>
-            
-            </td>
-          </tr>
-          
-          <!-- Footer: using same approach as auth template (dynamic emailFooter but styled with theme) -->
-          <tr>
-            <td>
-              ${styledFooter}
-            </td>
-          </tr>
-        
-        </table> <!-- end container -->
-      
-      </td>
-    </tr>
-  </table>
-</div>
-`;
-
-    await sendEmail(
-      thisUser.email,
-      `🎉 Enterprise Event Created - ${event.title}`,
-      emailBody,
-      [
-        {
-          filename: `${event.title}-${event.eventSecret}-qr-access.pdf`,
-          path: pdfPath,
-        },
-      ],
-    );
 
     return await event.populate("organizer organization");
   } catch (error) {
@@ -944,22 +745,419 @@ export const publishEvent = async (_: any, { id }: any, { user }: any) => {
 // CANCEL EVENT
 // ==============================================================
 
-export const cancelEvent = async (_: any, { id }: any, { user }: any) => {
-  requireAuth(user);
-  if (!Types.ObjectId.isValid(id)) throw new Error("Invalid event ID");
+// Types
+interface Event {
+  _id: ObjectId;
+  title: string;
+  status: string;
+  organizer: ObjectId;
+  participants?: ObjectId[];
+  facilitators?: ObjectId[];
+  admins?: ObjectId[];
+  dateTime: { start: string };
+  billing?: {
+    status: string;
+    refundProcessed?: boolean;
+    finalAmount?: number;
+    originalAmount?: number;
+    currency?: string;
+  };
+  sessionStartedAt?: Date;
+  sessionEndedAt?: Date;
+  sessionPausedAt?: Date;
+  interactivity?: {
+    allowChat?: boolean;
+    allowPolls?: boolean;
+    allowQnA?: boolean;
+    allowFeedback?: boolean;
+    liveReactions?: boolean;
+    raiseHandFeature?: boolean;
+  };
+  metadata?: {
+    updatedAt?: Date;
+    cancelledAt?: Date;
+    cancelledBy?: string;
+    cancellationReason?: string | null;
+    participantsNotified?: boolean;
+    calendarIntegrations?: {
+      googleCalendarId?: string;
+      outlookEventId?: string;
+    };
+  };
+}
 
-  const event = await Event.findById(id);
-  if (!event) throw new Error("Event not found");
+interface UpdateSet {
+  status: string;
+  updatedAt: Date;
+  "metadata.updatedAt": Date;
+  "metadata.cancelledAt": Date;
+  "metadata.cancelledBy": string;
+  "metadata.cancellationReason": null;
+  "metadata.participantsNotified": boolean;
+  sessionEndedAt?: Date;
+  sessionPausedAt?: Date | null;
+  "billing.status"?: string;
+  "interactivity.allowChat"?: boolean;
+  "interactivity.allowPolls"?: boolean;
+  "interactivity.allowQnA"?: boolean;
+  "interactivity.allowFeedback"?: boolean;
+  "interactivity.liveReactions"?: boolean;
+  "interactivity.raiseHandFeature"?: boolean;
+  [key: string]: any; // For dynamic nested fields
+}
 
-  if (event.organizer.toString() !== user.id) {
-    throw new Error("Unauthorized – Only the organizer can cancel this event");
+// Types
+interface Event {
+  _id: ObjectId;
+  title: string;
+  status: string;
+  organizer: ObjectId;
+  participants?: ObjectId[];
+  facilitators?: ObjectId[];
+  admins?: ObjectId[];
+  dateTime: { start: string };
+  billing?: {
+    status: string;
+    refundProcessed?: boolean;
+    finalAmount?: number;
+    originalAmount?: number;
+    currency?: string;
+  };
+  sessionStartedAt?: Date;
+  sessionEndedAt?: Date;
+  sessionPausedAt?: Date;
+  interactivity?: {
+    allowChat?: boolean;
+    allowPolls?: boolean;
+    allowQnA?: boolean;
+    allowFeedback?: boolean;
+    liveReactions?: boolean;
+    raiseHandFeature?: boolean;
+  };
+  metadata?: {
+    updatedAt?: Date;
+    cancelledAt?: Date;
+    cancelledBy?: string;
+    cancellationReason?: string | null;
+    participantsNotified?: boolean;
+    calendarIntegrations?: {
+      googleCalendarId?: string;
+      outlookEventId?: string;
+    };
+  };
+}
+
+interface Context {
+  db: Db;
+  auth: { userId: string; roles?: string[] };
+  pubsub?: {
+    publish: (triggerName: string, payload: any) => void;
+  };
+  logger: {
+    info: (msg: string) => void;
+    error: (msg: string, error?: unknown) => void;
+  };
+}
+
+interface UpdateSet {
+  status: string;
+  updatedAt: Date;
+  "metadata.updatedAt": Date;
+  "metadata.cancelledAt": Date;
+  "metadata.cancelledBy": string;
+  "metadata.cancellationReason": null;
+  "metadata.participantsNotified": boolean;
+  sessionEndedAt?: Date;
+  sessionPausedAt?: Date | null;
+  "billing.status"?: string;
+  "interactivity.allowChat"?: boolean;
+  "interactivity.allowPolls"?: boolean;
+  "interactivity.allowQnA"?: boolean;
+  "interactivity.allowFeedback"?: boolean;
+  "interactivity.liveReactions"?: boolean;
+  "interactivity.raiseHandFeature"?: boolean;
+}
+
+export const cancelEvent = async (
+  _: unknown,
+  { id }: { id: string },
+  { db, auth, pubsub, logger }: Context,
+): Promise<boolean> => {
+  // Helper: Send cancellation notifications
+  async function sendCancellationNotifications(
+    event: Event,
+    cancelledByUserId: string,
+  ): Promise<void> {
+    const userIdsToNotify = new Set<string>();
+
+    // Add participants
+    event.participants?.forEach((p) => userIdsToNotify.add(p.toString()));
+    event.facilitators?.forEach((f) => userIdsToNotify.add(f.toString()));
+    event.admins?.forEach((a) => userIdsToNotify.add(a.toString()));
+
+    if (event.organizer) {
+      userIdsToNotify.add(event.organizer.toString());
+    }
+
+    userIdsToNotify.delete(cancelledByUserId);
+
+    if (userIdsToNotify.size === 0) return;
+
+    const users = await db
+      .collection("users")
+      .find({
+        _id: { $in: Array.from(userIdsToNotify).map((id) => new ObjectId(id)) },
+      })
+      .toArray();
+
+    const notification = {
+      title: `Event Cancelled: ${event.title}`,
+      body: `The event "${event.title}" scheduled for ${event.dateTime.start} has been cancelled.`,
+      type: "EVENT_CANCELLED" as const,
+      eventId: event._id.toString(),
+      metadata: {
+        eventTitle: event.title,
+        originalStartDate: event.dateTime.start,
+        cancelledAt: new Date(),
+      },
+      createdAt: new Date(),
+    };
+
+    const notifications = users.map((user) => ({
+      ...notification,
+      userId: user._id,
+      isRead: false,
+    }));
+
+    if (notifications.length > 0) {
+      await db.collection("notifications").insertMany(notifications);
+    }
+
+    await db
+      .collection("events")
+      .updateOne(
+        { _id: event._id },
+        { $set: { "metadata.participantsNotified": true } },
+      );
   }
 
-  event.status = "CANCELLED";
-  event.updatedAt = new Date();
-  await event.save();
+  // Helper: Handle refunds if needed
+  async function handleRefundsIfNeeded(event: Event): Promise<void> {
+    if (!event.billing || event.billing.status !== "PAID") return;
+    if (event.billing.refundProcessed) return;
 
-  return event;
+    const finalAmount =
+      event.billing.finalAmount || event.billing.originalAmount;
+    if (!finalAmount || finalAmount <= 0) return;
+
+    try {
+      const refundRecords =
+        event.participants?.map((participant) => ({
+          eventId: event._id,
+          userId: participant,
+          amount: finalAmount / (event.participants?.length || 1),
+          currency: event.billing?.currency || "USD",
+          status: "PROCESSING" as const,
+          initiatedAt: new Date(),
+          initiatedBy: event.metadata?.cancelledBy,
+        })) || [];
+
+      if (refundRecords.length > 0) {
+        await db.collection("refunds").insertMany(refundRecords);
+      }
+
+      await db.collection("events").updateOne(
+        { _id: event._id },
+        {
+          $set: {
+            "billing.status": "REFUNDED",
+            "billing.refundProcessed": true,
+            "billing.refundedAt": new Date(),
+          },
+        },
+      );
+
+      logger.info(`Refunds initiated for event ${event._id}`);
+    } catch (error) {
+      logger.error(`Failed to process refunds for event ${event._id}:`, error);
+    }
+  }
+
+  // Helper: Update calendar integrations
+  async function updateCalendarIntegrations(event: Event): Promise<void> {
+    if (!event.metadata?.calendarIntegrations) return;
+
+    const { calendarIntegrations } = event.metadata;
+
+    if (calendarIntegrations.googleCalendarId) {
+      try {
+        logger.info(
+          `Removed event from Google Calendar: ${calendarIntegrations.googleCalendarId}`,
+        );
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        logger.error(`Failed to update Google Calendar: ${errorMessage}`);
+      }
+    }
+
+    if (calendarIntegrations.outlookEventId) {
+      try {
+        logger.info(
+          `Removed event from Outlook: ${calendarIntegrations.outlookEventId}`,
+        );
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        logger.error(`Failed to update Outlook Calendar: ${errorMessage}`);
+      }
+    }
+  }
+
+  // Helper: Log audit trail
+  async function logAuditTrail(
+    event: Event,
+    cancelledByUserId: string,
+  ): Promise<void> {
+    const auditLog = {
+      action: "CANCEL_EVENT" as const,
+      entityType: "Event" as const,
+      entityId: event._id,
+      userId: new ObjectId(cancelledByUserId),
+      changes: {
+        previousStatus: event.status,
+        newStatus: "CANCELLED",
+        previousBillingStatus: event.billing?.status,
+        newBillingStatus:
+          event.billing?.status === "PAID" ? "REFUNDED" : "CANCELLED",
+      },
+      metadata: {
+        eventTitle: event.title,
+        eventDate: event.dateTime,
+        participantCount: event.participants?.length || 0,
+      },
+      timestamp: new Date(),
+      ipAddress: null,
+      userAgent: null,
+    };
+
+    await db.collection("auditLogs").insertOne(auditLog);
+    logger.info(`Audit log created for event cancellation: ${event._id}`);
+  }
+
+  // ========== MAIN RESOLVER LOGIC ==========
+
+  // 1. Authentication
+  if (!auth.userId) {
+    throw new Error("Authentication required");
+  }
+
+  // 2. Fetch the event
+  const event = await db.collection<Event>("events").findOne({
+    _id: new ObjectId(id),
+  });
+
+  if (!event) {
+    throw new Error(`Event with id ${id} not found`);
+  }
+
+  // 3. Validate cancellation eligibility
+  if (event.status === "CANCELLED") {
+    throw new Error("Event is already cancelled");
+  }
+
+  if (event.status === "COMPLETED") {
+    throw new Error("Cannot cancel a completed event");
+  }
+
+  // 4. Check permissions
+  const isOrganizer = event.organizer.toString() === auth.userId;
+  const isAdmin = event.admins?.some(
+    (admin) => admin.toString() === auth.userId,
+  );
+  const isFacilitator = event.facilitators?.some(
+    (fac) => fac.toString() === auth.userId,
+  );
+  const isSuperAdmin = auth.roles?.includes("SUPER_ADMIN");
+
+  if (!isOrganizer && !isAdmin && !isFacilitator && !isSuperAdmin) {
+    throw new Error("You don't have permission to cancel this event");
+  }
+
+  // 5. Prepare update operations
+  const updateOperations: { $set: UpdateSet } = {
+    $set: {
+      status: "CANCELLED",
+      updatedAt: new Date(),
+      "metadata.updatedAt": new Date(),
+      "metadata.cancelledAt": new Date(),
+      "metadata.cancelledBy": auth.userId,
+      "metadata.cancellationReason": null,
+      "metadata.participantsNotified": false,
+    },
+  };
+
+  // 6. Handle active session if exists
+  if (event.sessionStartedAt && !event.sessionEndedAt) {
+    updateOperations.$set.sessionEndedAt = new Date();
+    if (event.sessionPausedAt) {
+      updateOperations.$set.sessionPausedAt = null;
+    }
+  }
+
+  // 7. Update billing status if not already cancelled/refunded
+  if (
+    event.billing &&
+    event.billing.status !== "CANCELLED" &&
+    event.billing.status !== "REFUNDED"
+  ) {
+    updateOperations.$set["billing.status"] = "CANCELLED";
+  }
+
+  // 8. Disable interactivity for cancelled events
+  if (event.interactivity) {
+    updateOperations.$set["interactivity.allowChat"] = false;
+    updateOperations.$set["interactivity.allowPolls"] = false;
+    updateOperations.$set["interactivity.allowQnA"] = false;
+    updateOperations.$set["interactivity.allowFeedback"] = false;
+    updateOperations.$set["interactivity.liveReactions"] = false;
+    updateOperations.$set["interactivity.raiseHandFeature"] = false;
+  }
+
+  // 9. Execute the update
+  const result = await db
+    .collection("events")
+    .updateOne({ _id: new ObjectId(id) }, updateOperations);
+
+  if (result.modifiedCount === 0) {
+    logger.error(`Failed to cancel event ${id}`);
+    throw new Error("Failed to cancel event");
+  }
+
+  // 10. Get updated event for side effects
+  const updatedEvent = await db.collection<Event>("events").findOne({
+    _id: new ObjectId(id),
+  });
+
+  if (!updatedEvent) {
+    throw new Error("Event not found after update");
+  }
+
+  // 11. Side Effects (async - don't block response)
+  Promise.allSettled([
+    sendCancellationNotifications(updatedEvent, auth.userId),
+    handleRefundsIfNeeded(updatedEvent),
+    updateCalendarIntegrations(updatedEvent),
+    logAuditTrail(updatedEvent, auth.userId),
+    pubsub?.publish(`EVENT_CANCELLED_${id}`, {
+      eventCancelled: updatedEvent,
+    }),
+  ]).catch((err) => {
+    logger.error(`Side effects failed for event ${id}:`, err);
+  });
+
+  // 12. Return success
+  return true;
 };
 
 // ==============================================================

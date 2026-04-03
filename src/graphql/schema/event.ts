@@ -316,6 +316,7 @@ export const eventTypeDefs = gql`
     createEnterpriseEvent(input: CreateEnterpriseEventInput!): Event!
     updateEvent(id: ID!, input: UpdateEventInput!): Event!
     deleteEvent(id: ID!): Boolean!
+    cancelEvent(id: ID!): Boolean!
 
     # Participant Management
     joinEvent(eventId: ID!): Event!
@@ -332,7 +333,6 @@ export const eventTypeDefs = gql`
 
     # Event Status Management
     publishEvent(id: ID!): Event!
-    cancelEvent(id: ID!): Event!
     completeEvent(id: ID!): Event!
 
     # Session Management

@@ -229,26 +229,35 @@ export async function generateQrPdf(
       console.warn("Logo not found:", logoPath);
     }
 
+    const ASSETS_DIR = path.join(ROOT_DIR, "assets");
     // -------------------------
     // Footer (Centered)
     // -------------------------
     doc.y = qrY + qrSize + 35;
 
     // Main text - SCAN HERE TO CHECK IN
-    doc.font("Helvetica-Bold").fontSize(18).text("SCAN HERE TO CHECK IN", {
+
+    const fontPath1 = path.join(ASSETS_DIR, "NotoSans-Regular.ttf");
+
+    doc.registerFont("NotoSans", fontPath1);
+
+    // Main text - SCAN HERE TO CHECK IN
+    doc.font("NotoSans").fontSize(18).text("SCAN ⬆ TO CHECK IN", {
       align: "center",
       lineGap: 5,
     });
 
     doc.moveDown(0.5);
 
-    // Event ID
+    const fontPath = path.join(ASSETS_DIR, "JetBrainsMono-Bold.ttf");
+
+    doc.registerFont("Mono-Bold", fontPath);
+
     doc
-      .font("Helvetica")
-      .fontSize(12)
+      .font("Mono-Bold")
+      .fontSize(16)
       .text(`Event ID: ${eventData.eventSecret}`, {
         align: "center",
-        lineGap: 3,
       });
 
     doc.end();
@@ -268,12 +277,53 @@ export async function generateQrPdf(
 // -------------------------------------
 // Event Summary Email
 // -------------------------------------
+// Event Summary Email Template using Auth Email Formatting
 export const createEventSummaryEmail = (
   event: any,
   organization: any,
   invoice: InvoiceData | null,
   isFreeEvent: boolean = false,
 ) => {
+  // Helper function to format date range (updated to handle Date objects directly)
+  const formatEventRange = (startDate: Date, endDate: Date): string => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    const sameDay =
+      start.getFullYear() === end.getFullYear() &&
+      start.getMonth() === end.getMonth() &&
+      start.getDate() === end.getDate();
+
+    const formatDateWithDay = (d: Date) =>
+      `${d.toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })}`;
+
+    const formatDate = (d: Date) =>
+      `${d.toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })}`;
+
+    const formatTime = (d: Date) =>
+      d.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
+
+    if (sameDay) {
+      return `${formatDateWithDay(start)} ${formatTime(start)} to ${formatTime(end)}`;
+    }
+
+    return `${formatDate(start)} ${formatTime(start)} to ${formatDate(end)} ${formatTime(end)}`;
+  };
+
+  // Calculate duration
   const start = new Date(event.dateTime.start);
   const end = new Date(event.dateTime.end);
   const durationHours = Math.ceil(
@@ -285,78 +335,241 @@ export const createEventSummaryEmail = (
     return `${currency} ${parseFloat(amount.toString()).toFixed(2)}`;
   };
 
-  const locationName = `${event.location?.address}, ${event.location?.name || "TBD"}`;
-
-  // ✅ Use human-friendly date range
+  const locationName = `${event.location?.name || "TBD"}`;
+  const locationAddress = `${event.location?.address || "Address not provided"}`;
   const humanDateRange = formatEventRange(start, end);
 
-  return `
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-${emailHeader}
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>${event.title}</h1>
-      <p>${isFreeEvent ? "FREE Short Event (≤ 3 hours)" : "Standard Event Registration"}</p>
-    </div>
-    <div class="content">
-      <h2>Event Details</h2>
-      <table class="data-table">
-        <tr>
-          <td class="data-item"><span class="label">Event Type</span><span class="value">${event.eventType}</span></td>
-          <td class="data-item">
-  <span class="label">Duration</span>
-  <span class="value">
-    ${durationHours} hours${durationHours >= 24 ? ` (${durationDays} days)` : ""}
-  </span>
-</td>
-          <td class="data-item"><span class="label">Event ID</span><span class="value">${event.eventSecret}</span></td>
-        </tr>
-        <tr>
-          <td class="data-item" colspan="3"><span class="label">Event Date & Time</span><span class="value">${humanDateRange}</span></td>
-        </tr>
-        <tr>
-          <td class="data-item" colspan="3"><span class="label">Location</span><span class="value">${locationName}</span></td>
-        </tr>
-      </table>
-      
-      ${
-        isFreeEvent
-          ? `<div style="text-align: center; padding: 20px;">
-          <span class="free-badge">✨ FREE EVENT - No Payment Required ✨</span>
-          <p style="margin-top: 15px;">Short events (≤ 3 hours) are complimentary!</p>
-        </div>`
-          : `
-        <h2>Billing Information</h2>
-        <div class="invoice-details">
-          <table class="data-table">
-            <tr>
-              <td class="data-item"><span class="label">Organization</span><span class="value">${organization?.name || "Not specified"}</span></td>
-              <td class="data-item"><span class="label">Invoice Number</span><span class="value">${invoice?.invoiceNumber || "Pending"}</span></td>
-            </tr>
-            <tr>
-              <td class="data-item"><span class="label">Daily Rate</span><span class="value">${formatCurrency(DAILY_RATE, invoice?.currency)}/day</span></td>
-              <td class="data-item"><span class="label">Number of Days</span><span class="value">${invoice?.days || durationDays}</span></td>
-            </tr>
-            <tr>
-              <td class="data-item"><span class="label">Original Amount</span><span class="value">${formatCurrency(invoice?.originalAmount || 0, invoice?.currency)}</span></td>
-              <td class="data-item"><span class="label">Discount (20%)</span><span class="value">-${formatCurrency(invoice?.discountAmount || 0, invoice?.currency)}</span></td>
-            </tr>
-            <tr style="background-color: #e6f3ff;">
-              <td class="data-item" colspan="2"><span class="label" style="color: #007bff;">Final Amount Due</span>
-              <span class="value" style="color: #007bff; font-size: 18px;">${formatCurrency(invoice?.finalAmount || invoice?.amount || 0, invoice?.currency)}</span></td>
-            </tr>
-          </table>
-        </div>
-        `
+  // Theme colors from your design system
+  const theme = {
+    dark: false,
+    colors: {
+      primary: "#2A73C5",
+      "primary-darken-1": "#2363A9",
+      "primary-lighten-1": "#4A8ED4",
+      secondary: "#5E60CE",
+      accent: "#3D8BFF",
+      success: "#2EBD85",
+      warning: "#F4B740",
+      error: "#E05658",
+      info: "#3AB0FF",
+      background: "#F5F7FA",
+      surface: "#FFFFFF",
+    },
+  };
+
+  const backgroundColor = theme.colors.background;
+  const surfaceColor = theme.colors.surface;
+  const primaryColor = theme.colors.primary;
+  const secondaryColor = theme.colors.secondary;
+  const successColor = theme.colors.success;
+  const textColor = "#1A2C3E";
+  const textMuted = "#6C757D";
+
+  // Plan configuration based on event type
+  const planConfig = isFreeEvent
+    ? {
+        label: "FREE SHORT EVENT",
+        billing: "No payment required - Complimentary",
+        note: "Events ≤ 3 hours are free of charge. Upgrade to standard plan for longer events.",
+        statusSuffix: " (≤ 3 hours)",
       }
-    </div>
-    ${emailFooter}
-  </div>
-</body>
-</html>`.trim();
+    : {
+        label: "STANDARD EVENT",
+        billing: `Daily Rate: ${formatCurrency(DAILY_RATE, invoice?.currency)}/day × ${invoice?.days || durationDays} days`,
+        note: `20% enterprise discount applied. Final amount: ${formatCurrency(invoice?.finalAmount || invoice?.amount || 0, invoice?.currency)}`,
+        statusSuffix: "",
+      };
+
+  // Styled footer
+  const styledFooter = emailFooter.replace(
+    'style="font-family: Arial, sans-serif; background-color: #f4f5f7; padding: 20px; text-align: center; color: #6c757d; font-size: 12px;"',
+    `style="background-color:${backgroundColor}; padding:16px; text-align:center; color:#7f8c8d; font-size:12px; border-top:1px solid #e9ecef;"`,
+  );
+
+  // Authentication email template formatting
+  const emailBody = `
+<div style="margin:0; padding:0; background-color: ${backgroundColor};">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: ${backgroundColor}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
+    <tr>
+      <td align="center" style="padding: 16px;">
+        
+        <!-- Container -->
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; background-color: ${surfaceColor}; border-radius: 12px; overflow: hidden;">
+          
+          <!-- Header -->
+          <tr>
+            <td>
+              ${emailHeader}
+            </td>
+          </tr>
+
+          <!-- Event Hero / Gradient Banner -->
+          <tr>
+            <td style="background: linear-gradient(135deg, ${primaryColor}, ${secondaryColor}); padding: 20px 24px; text-align: center; color: #ffffff;">
+              <h1 style="margin: 0 0 4px 0; font-size: 22px; font-weight: 700; letter-spacing: -0.2px;">
+                ${event.title}
+              </h1>
+              <div style="margin-top: 10px; display: inline-block; padding: 4px 14px; border-radius: 30px; background: rgba(255,255,255,0.2); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                ${planConfig.label}
+              </div>
+             </td>
+          </tr>
+
+          <!-- Main Content Area -->
+<tr>
+  <td style="padding: 20px 14px;">
+
+    <!-- Key-Value Table -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+
+      <!-- Event ID -->
+      <tr>
+        <td style="padding: 6px 0; width: 40%; font-size: 12px; color: ${textMuted};">Event ID</td>
+        <td style="padding: 6px 0; width: 60%;">
+          <span style="background:${backgroundColor}; padding:4px 8px; border-radius:6px; border:1px solid #e9ecef; font-family:monospace; font-size:12px; color:${primaryColor};">
+            ${event.eventSecret}
+          </span>
+        </td>
+      </tr>
+
+      <!-- Event Type -->
+      <tr>
+        <td style="padding: 6px 0; font-size: 12px; color: ${textMuted};">Event Type</td>
+        <td style="padding: 6px 0; font-size: 13px; color: ${textColor};">
+          ${event.eventType}
+        </td>
+      </tr>
+
+      <!-- Date & Time -->
+      <tr>
+        <td style="padding: 6px 0; font-size: 12px; color: ${textMuted};">Date & Time</td>
+        <td style="padding: 6px 0; font-size: 13px; color: ${textColor};">
+          ${humanDateRange}
+        </td>
+      </tr>
+
+      <!-- Duration -->
+      <tr>
+        <td style="padding: 6px 0; font-size: 12px; color: ${textMuted};">Duration</td>
+        <td style="padding: 6px 0; font-size: 13px; color: ${textColor};">
+          ${durationHours} hrs${durationHours >= 24 ? ` (${durationDays} days)` : ""}
+        </td>
+      </tr>
+
+      <!-- Location -->
+      <tr>
+        <td style="padding: 6px 0; font-size: 12px; color: ${textMuted};">Location</td>
+        <td style="padding: 6px 0; font-size: 13px; color: ${textColor};">
+          ${locationName}<br/>
+          <span style="font-size:11px; color:${textMuted};">${locationAddress}</span>
+        </td>
+      </tr>
+
+      <!-- Organization -->
+      <tr>
+        <td style="padding: 6px 0; font-size: 12px; color: ${textMuted};">Organization</td>
+        <td style="padding: 6px 0; font-size: 13px; color: ${textColor};">
+          ${organization?.name || "Not specified"}
+        </td>
+      </tr>
+
+      <!-- Status -->
+      <tr>
+        <td style="padding: 6px 0; font-size: 12px; color: ${textMuted};">Status</td>
+        <td style="padding: 6px 0;">
+          <span style="background:#e6f4ea; padding:3px 10px; border-radius:14px; font-size:11px; font-weight:500; color:#1e7b48;">
+            Active
+          </span>
+          ${planConfig.statusSuffix}
+        </td>
+      </tr>
+
+    </table>
+
+    <!-- Billing / Free Block -->
+    ${
+      !isFreeEvent && invoice
+        ? `
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:16px;">
+      <tr>
+        <td style="background:${backgroundColor}; padding:12px; border-radius:8px; border:1px solid #e9ecef;">
+          
+          <table width="100%" cellspacing="0" cellpadding="0" border="0">
+
+            <tr>
+              <td style="padding:4px 0; font-size:12px; color:${textMuted};">Invoice</td>
+              <td style="padding:4px 0; font-size:13px; color:${textColor}; text-align:right;">
+                ${invoice.invoiceNumber || "Pending"}
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:4px 0; font-size:12px; color:${textMuted};">Days</td>
+              <td style="padding:4px 0; font-size:13px; text-align:right;">
+                ${invoice.days || durationDays}
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:4px 0; font-size:12px; color:${textMuted};">Amount</td>
+              <td style="padding:4px 0; font-size:13px; text-align:right;">
+                ${formatCurrency(invoice.originalAmount || 0, invoice.currency)}
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:4px 0; font-size:12px; color:${textMuted};">Discount</td>
+              <td style="padding:4px 0; font-size:13px; color:${successColor}; text-align:right;">
+                -${formatCurrency(invoice.discountAmount || 0, invoice.currency)}
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:6px 0; font-weight:600; color:${primaryColor};">Total</td>
+              <td style="padding:6px 0; font-size:16px; font-weight:700; color:${primaryColor}; text-align:right;">
+                ${formatCurrency(invoice.finalAmount || invoice.amount || 0, invoice.currency)}
+              </td>
+            </tr>
+
+          </table>
+
+        </td>
+      </tr>
+    </table>
+    `
+        : `
+    <!-- Note -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:14px;">
+      <tr>
+        <td style="background:${backgroundColor}; padding:12px; border-left:4px solid ${primaryColor}; border-radius:6px;">
+          <span style="font-size:12px;">
+            <strong>📌 Note:</strong> ${planConfig.note}
+          </span>
+        </td>
+      </tr>
+    </table>
+    `
+    }
+
+
+
+  </td>
+</tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td>
+              ${styledFooter}
+             </td>
+          </tr>
+        
+        </table> <!-- end container -->
+      
+       </td>
+    </tr>
+   </table>
+</div>
+`;
+
+  return emailBody.trim();
 };
